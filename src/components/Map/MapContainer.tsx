@@ -13,6 +13,7 @@ interface MapContainerProps {
   radii: RadiusOption[];
   selectedPlace: Place | null;
   onMarkerClick: (place: Place) => void;
+  onMapReady?: () => void;
 }
 
 export default function MapContainer({
@@ -21,8 +22,16 @@ export default function MapContainer({
   radii,
   selectedPlace,
   onMarkerClick,
+  onMapReady,
 }: MapContainerProps) {
   const { mapRef, map, isReady, panTo, panAndZoom } = useKakaoMap(center);
+
+  // AppShell에 SDK 준비 완료 알림
+  useEffect(() => {
+    if (isReady) onMapReady?.();
+  // onMapReady is a stable callback ref — intentionally excluded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady]);
 
   // Pan map when center changes (from search or GPS)
   useEffect(() => {

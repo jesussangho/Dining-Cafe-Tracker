@@ -40,35 +40,38 @@ export function searchPlacesByKeyword(
   });
 }
 
-export function searchNearbyPlaces(
-  center: MapCenter,
-  radius: number,
-  categoryCode?: string
+function categorySearchPromise(
+  code: string,
+  location: kakao.maps.LatLng,
+  radius: number
 ): Promise<Place[]> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const ps = new kakao.maps.services.Places();
-    const location = new kakao.maps.LatLng(center.lat, center.lng);
-    const searchFn = categoryCode ? 'categorySearch' : 'keywordSearch';
+    ps.categorySearch(
+      code,
+      (result, status) => {
+        if (status === kakao.maps.services.Status.OK) {
+          resolve(result.map(normalizePlace));
+        } else {
+          resolve([]);
+        }
+      },
+      { location, radius, sort: kakao.maps.services.SortBy.DISTANCE }
+    );
+  });
+}
 
-    if (categoryCode) {
-      ps.categorySearch(
-        categoryCode,
-        (result, status) => {
-          if (status === kakao.maps.services.Status.OK) {
-            resolve(result.map(normalizePlace));
-          } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
-            resolve([]);
-          } else {
-            reject(new Error('검색 중 오류가 발생했습니다.'));
-          }
-        },
-        { location, radius, sort: kakao.maps.services.SortBy.DISTANCE }
-      );
-    } else {
-      resolve([]);
-    }
-
-    void searchFn;
+// GPS 위치 기반으로 음식점(FD6) + 카페(CE7) 동시 검색
+export function searchNearbyAll(center: MapCenter, radius: number): Promise<Place[]> {
+  const location = new kakao.maps.LatLng(center.lat, center.lng);
+  return Promise.all([
+    categorySearchPromise('FD6', location, radius),
+    categorySearchPromise('CE7', location, radius),
+  ]).then(([restaurants, cafes]) => {
+    // 거리순 정렬 후 최대 30개
+    const merged = [...restaurants, ...cafes];
+    merged.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
+    return merged.slice(0, 30);
   });
 }
 

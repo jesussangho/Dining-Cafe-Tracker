@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BottomSheetState, MapCenter, Place, RadiusOption } from '@/types';
 import { DEFAULT_CENTER, RADIUS_OPTIONS } from '@/constants/map';
+import { searchNearbyAll } from '@/services/kakaoMaps';
 import { useSearch } from '@/hooks/useSearch';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -18,26 +19,41 @@ export default function AppShell() {
   const [radii, setRadii] = useState<RadiusOption[]>(RADIUS_OPTIONS);
   const [searchInput, setSearchInput] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+
+  // 지도에 표시할 장소 (검색 결과 or GPS 자동 탐색)
+  const [displayPlaces, setDisplayPlaces] = useState<Place[]>([]);
 
   const debouncedInput = useDebounce(searchInput, 350);
-  const { results, status, search, clear } = useSearch();
+  const { results: searchResults, status, search, clear } = useSearch();
   const { location: userLocation } = useGeolocation();
 
-  // GPS 위치를 얻으면 초기 중심을 사용자 위치로 이동
-  const gpsInitialized = useRef(false);
-  useEffect(() => {
-    if (userLocation && !gpsInitialized.current) {
-      gpsInitialized.current = true;
-      setCenter(userLocation);
-    }
-  }, [userLocation]);
+  const gpsSearchDone = useRef(false);
 
-  // 디바운스된 입력으로 검색 실행
+  // ── GPS: 지도 준비 + 위치 확보 시 주변 맛집/카페 자동 탐색 ──
   useEffect(() => {
-    if (debouncedInput.trim()) {
-      search(debouncedInput);
-    }
+    if (!mapReady || !userLocation || gpsSearchDone.current) return;
+    gpsSearchDone.current = true;
+    setCenter(userLocation);
+    searchNearbyAll(userLocation, 1200)
+      .then((places) => {
+        if (places.length > 0) setDisplayPlaces(places);
+      })
+      .catch(console.error);
+  }, [mapReady, userLocation]);
+
+  // ── 검색: 디바운스 입력으로 키워드 검색 ──
+  useEffect(() => {
+    if (debouncedInput.trim()) search(debouncedInput);
   }, [debouncedInput, search]);
+
+  // ── 검색 성공: 첫 번째 결과로 지도 자동 포커싱 + 마커 표시 ──
+  useEffect(() => {
+    if (status === 'success' && searchResults.length > 0) {
+      setDisplayPlaces(searchResults);
+      setCenter({ lat: searchResults[0].lat, lng: searchResults[0].lng });
+    }
+  }, [status, searchResults]);
 
   const handleSearchChange = useCallback((keyword: string) => {
     setSearchInput(keyword);
@@ -54,15 +70,23 @@ export default function AppShell() {
   const handleSearchClear = useCallback(() => {
     setSearchInput('');
     clear();
-  }, [clear]);
+    // GPS 자동 탐색 결과 복원
+    if (userLocation && gpsSearchDone.current) {
+      searchNearbyAll(userLocation, 1200)
+        .then((places) => { if (places.length > 0) setDisplayPlaces(places); })
+        .catch(console.error);
+    } else {
+      setDisplayPlaces([]);
+    }
+  }, [clear, userLocation]);
 
   const handlePlaceSelect = useCallback((place: Place) => {
     setCenter({ lat: place.lat, lng: place.lng });
     setSelectedPlace(place);
     setSheetState('peek');
-    clear();
-    setSearchInput('');
     setSearchFocused(false);
+    setSearchInput('');
+    clear();
   }, [clear]);
 
   const handleMarkerClick = useCallback((place: Place) => {
@@ -82,23 +106,29 @@ export default function AppShell() {
   }, []);
 
   const handleGpsClick = useCallback(() => {
-    if (userLocation) setCenter({ ...userLocation });
+    if (!userLocation) return;
+    setCenter({ ...userLocation });
+    // GPS 버튼으로 돌아올 때도 주변 재탐색
+    searchNearbyAll(userLocation, 1200)
+      .then((places) => { if (places.length > 0) setDisplayPlaces(places); })
+      .catch(console.error);
   }, [userLocation]);
 
   const showResults = searchFocused && status !== 'idle';
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-gray-100">
-      {/* Map layer */}
+      {/* 지도 */}
       <MapContainer
         center={center}
-        places={results}
+        places={displayPlaces}
         radii={radii}
         selectedPlace={selectedPlace}
         onMarkerClick={handleMarkerClick}
+        onMapReady={() => setMapReady(true)}
       />
 
-      {/* Search overlay */}
+      {/* 검색바 오버레이 */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 pointer-events-none">
         <div className="relative pointer-events-auto">
           <SearchBar
@@ -110,7 +140,7 @@ export default function AppShell() {
           />
           {showResults && (
             <SearchResults
-              results={results}
+              results={searchResults}
               status={status}
               onSelect={handlePlaceSelect}
             />
@@ -118,7 +148,7 @@ export default function AppShell() {
         </div>
       </div>
 
-      {/* Radius toggle buttons */}
+      {/* 도보권 토글 */}
       <div className="absolute top-20 left-4 z-10 flex flex-col gap-1.5">
         {radii.map((r) => (
           <button
@@ -135,7 +165,14 @@ export default function AppShell() {
         ))}
       </div>
 
-      {/* GPS button */}
+      {/* 장소 수 배지 */}
+      {displayPlaces.length > 0 && (
+        <div className="absolute top-20 right-4 z-10 px-3 py-1.5 bg-white rounded-xl shadow text-xs font-semibold text-gray-600">
+          {displayPlaces.length}개 장소
+        </div>
+      )}
+
+      {/* GPS 버튼 */}
       <button
         onClick={handleGpsClick}
         disabled={!userLocation}
@@ -144,12 +181,11 @@ export default function AppShell() {
       >
         <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="3" strokeWidth={2} />
-          <path strokeLinecap="round" strokeWidth={2}
-            d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+          <path strokeLinecap="round" strokeWidth={2} d="M12 2v3m0 14v3M2 12h3m14 0h3" />
         </svg>
       </button>
 
-      {/* Bottom sheet */}
+      {/* 하단 스와이프 시트 */}
       <BottomSheet
         state={sheetState}
         place={selectedPlace}

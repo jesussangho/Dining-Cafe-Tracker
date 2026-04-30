@@ -22,7 +22,8 @@
       "Bash(git commit -m 'fix: Enter key now triggers immediate search bypassing debounce *)",
       "Bash(git commit -m 'chore: add .env*.local to gitignore *)",
       "Bash(rm /Users/sangholee/Downloads/WEB01/.git/HEAD.lock)",
-      "Bash(git commit -m 'fix: add kakao.maps.load type definition *)"
+      "Bash(git commit -m 'fix: add kakao.maps.load type definition *)",
+      "Bash(git commit -m 'feat: GPS auto-discovery, search auto-pan, map-ready bridge *)"
     ]
   }
 }

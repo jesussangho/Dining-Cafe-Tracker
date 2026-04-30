@@ -24,7 +24,8 @@
       "Bash(rm /Users/sangholee/Downloads/WEB01/.git/HEAD.lock)",
       "Bash(git commit -m 'fix: add kakao.maps.load type definition *)",
       "Bash(git commit -m 'feat: GPS auto-discovery, search auto-pan, map-ready bridge *)",
-      "Bash(git commit -m 'feat: real car route time via Kakao Mobility API *)"
+      "Bash(git commit -m 'feat: real car route time via Kakao Mobility API *)",
+      "Bash(git commit -m 'feat: ODsay transit routing with unstable_cache *)"
     ]
   }
 }

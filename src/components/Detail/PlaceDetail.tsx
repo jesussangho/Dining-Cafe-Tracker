@@ -104,6 +104,7 @@ export default function PlaceDetail({ place, userLocation }: PlaceDetailProps) {
         <RouteCard
           place={place}
           distanceMeters={distanceMeters}
+          userLocation={userLocation}
           selectedMode={routeMode}
           onModeChange={setRouteMode}
         />

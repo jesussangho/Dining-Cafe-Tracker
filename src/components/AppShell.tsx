@@ -43,6 +43,14 @@ export default function AppShell() {
     setSearchInput(keyword);
   }, []);
 
+  // Enter 키: debounce 없이 즉시 검색
+  const handleSearchSubmit = useCallback((keyword: string) => {
+    const trimmed = keyword.trim();
+    if (!trimmed) return;
+    setSearchFocused(true);
+    search(trimmed);
+  }, [search]);
+
   const handleSearchClear = useCallback(() => {
     setSearchInput('');
     clear();
@@ -77,7 +85,7 @@ export default function AppShell() {
     if (userLocation) setCenter({ ...userLocation });
   }, [userLocation]);
 
-  const showResults = searchFocused && results.length > 0 && status === 'success';
+  const showResults = searchFocused && status !== 'idle';
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-gray-100">
@@ -95,6 +103,7 @@ export default function AppShell() {
         <div className="relative pointer-events-auto">
           <SearchBar
             onSearch={handleSearchChange}
+            onSubmit={handleSearchSubmit}
             onClear={handleSearchClear}
             status={status}
             onFocusChange={setSearchFocused}

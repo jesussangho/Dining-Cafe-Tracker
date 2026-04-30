@@ -5,6 +5,7 @@ import type { SearchState } from '@/types';
 
 interface SearchBarProps {
   onSearch: (keyword: string) => void;
+  onSubmit: (keyword: string) => void;
   onClear: () => void;
   status: SearchState;
   onFocusChange?: (focused: boolean) => void;
@@ -12,6 +13,7 @@ interface SearchBarProps {
 
 export default function SearchBar({
   onSearch,
+  onSubmit,
   onClear,
   status,
   onFocusChange,
@@ -32,7 +34,7 @@ export default function SearchBar({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      onSearch(value);
+      if (value.trim()) onSubmit(value.trim());
     }
     if (e.key === 'Escape') {
       handleClear();

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//private/tmp/dining-cafe-tracker/**)",
+      "Bash(npm install *)",
+      "Bash(cp *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)"
+    ]
+  }
+}

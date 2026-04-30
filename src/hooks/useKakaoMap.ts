@@ -37,14 +37,14 @@ export function useKakaoMap(initialCenter: MapCenter = DEFAULT_CENTER): UseKakao
     };
 
     const tryInit = () => {
-      if (window.kakao?.maps) {
+      if (window.kakao?.maps?.Map) {
         if (pollTimer) clearInterval(pollTimer);
         init();
       }
     };
 
     // 이미 로드된 경우 즉시 실행
-    if (typeof window !== 'undefined' && window.kakao?.maps) {
+    if (typeof window !== 'undefined' && window.kakao?.maps?.Map) {
       init();
     } else {
       // onLoad 콜백 등록 + 100ms 폴링 폴백 (두 경로 중 먼저 도착한 것이 실행)

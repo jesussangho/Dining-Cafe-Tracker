@@ -7,10 +7,12 @@ export default function KakaoScript() {
   if (!key) return null;
   return (
     <Script
-      src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&libraries=services`}
+      src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&libraries=services&autoload=false`}
       strategy="afterInteractive"
       onLoad={() => {
-        window.__kakaoMapOnLoad?.();
+        window.kakao.maps.load(() => {
+          window.__kakaoMapOnLoad?.();
+        });
       }}
     />
   );

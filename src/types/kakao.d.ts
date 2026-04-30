@@ -208,6 +208,8 @@ declare global {
         }
       }
 
+      function load(callback: () => void): void;
+
       namespace event {
         function addListener(
           target: object,

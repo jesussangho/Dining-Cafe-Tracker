@@ -23,6 +23,10 @@ export function searchPlacesByKeyword(
   options?: kakao.maps.services.PlacesSearchOptions
 ): Promise<Place[]> {
   return new Promise((resolve, reject) => {
+    if (!window.kakao?.maps?.services) {
+      reject(new Error('지도 서비스 로딩 중입니다. 잠시 후 다시 시도해주세요.'));
+      return;
+    }
     const ps = new kakao.maps.services.Places();
     ps.keywordSearch(
       keyword,

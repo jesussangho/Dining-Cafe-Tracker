@@ -12,11 +12,8 @@ interface BottomSheetProps {
   onClose: () => void;
 }
 
-const SNAP = {
-  hidden: 100,  // % translateY
-  peek: 62,
-  expanded: 8,
-} as const;
+// viewport 기준 고정 픽셀로 peek 높이를 보장
+const PEEK_PX = 180; // 화면 하단에서 이 높이만큼 노출
 
 export default function BottomSheet({
   state,
@@ -25,104 +22,127 @@ export default function BottomSheet({
   onStateChange,
   onClose,
 }: BottomSheetProps) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [sheetH, setSheetH] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
+  const [dragPx, setDragPx] = useState(0);
   const startYRef = useRef(0);
-  const startOffsetRef = useRef(0);
 
-  const baseTranslate = SNAP[state];
-  const currentTranslate = dragging
-    ? Math.max(0, Math.min(100, baseTranslate + dragOffset))
-    : baseTranslate;
+  // sheet 실제 높이 측정
+  useEffect(() => {
+    if (!sheetRef.current) return;
+    const ro = new ResizeObserver(() => {
+      setSheetH(sheetRef.current?.offsetHeight ?? 0);
+    });
+    ro.observe(sheetRef.current);
+    return () => ro.disconnect();
+  }, [place]);
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+  // translateY 계산 (px 기준)
+  const translateY = (() => {
+    if (state === 'hidden') return sheetH || 600;
+    if (state === 'expanded') return 0;
+    // peek: 상단 PEEK_PX 만큼만 노출
+    return Math.max(0, sheetH - PEEK_PX);
+  })();
+
+  const currentY = dragging
+    ? Math.max(0, translateY + dragPx)
+    : translateY;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
     startYRef.current = e.clientY;
-    startOffsetRef.current = 0;
-    setDragOffset(0);
+    setDragPx(0);
   };
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
-    const delta = e.clientY - startYRef.current;
-    const pct = (delta / window.innerHeight) * 100;
-    startOffsetRef.current = pct;
-    setDragOffset(pct);
+    setDragPx(e.clientY - startYRef.current);
   };
 
   const handlePointerUp = () => {
     if (!dragging) return;
     setDragging(false);
-    const pct = startOffsetRef.current;
+    const delta = dragPx;
+    setDragPx(0);
 
-    if (state === 'expanded') {
-      if (pct > 25) onStateChange('peek');
-    } else if (state === 'peek') {
-      if (pct < -15) onStateChange('expanded');
-      else if (pct > 20) onClose();
+    if (state === 'expanded' && delta > 80) onStateChange('peek');
+    else if (state === 'peek') {
+      if (delta < -60) onStateChange('expanded');
+      else if (delta > 100) onClose();
     }
-    setDragOffset(0);
   };
-
-  useEffect(() => {
-    if (state === 'hidden') setDragOffset(0);
-  }, [state]);
 
   if (!place) return null;
 
   return (
     <>
-      {/* Backdrop */}
       {state === 'expanded' && (
-        <div
-          className="absolute inset-0 z-20 bg-black/20"
-          onClick={onClose}
-        />
+        <div className="absolute inset-0 z-20 bg-black/25" onClick={onClose} />
       )}
 
-      {/* Sheet */}
       <div
+        ref={sheetRef}
         className={`absolute left-0 right-0 bottom-0 z-30 bg-white rounded-t-3xl shadow-2xl will-change-transform ${
           dragging ? '' : 'transition-transform duration-300 ease-out'
         }`}
-        style={{ transform: `translateY(${currentTranslate}%)`, maxHeight: '92svh' }}
+        style={{
+          transform: `translateY(${currentY}px)`,
+          maxHeight: '92dvh',
+        }}
       >
-        {/* Drag handle */}
+        {/* 드래그 핸들 영역 */}
         <div
-          className="pt-3 pb-2 px-4 cursor-grab active:cursor-grabbing touch-none"
+          className="pt-3 pb-1 px-4 cursor-grab active:cursor-grabbing touch-none select-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto" />
+          <div className="w-10 h-1.5 bg-gray-300 rounded-full mx-auto" />
 
-          {/* Peek preview (place name + chevron) */}
-          <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center justify-between mt-3 mb-1">
             <div className="flex-1 min-w-0">
-              <p className="text-base font-bold text-gray-900 truncate">{place.name}</p>
-              <p className="text-xs text-gray-500 truncate">{place.address}</p>
+              <p className="text-base font-bold text-gray-900 leading-snug truncate">
+                {place.name}
+              </p>
+              <p className="text-xs text-gray-500 truncate mt-0.5">{place.address}</p>
             </div>
-            <button
-              onClick={() => onStateChange(state === 'peek' ? 'expanded' : 'peek')}
-              className="ml-3 p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition flex-shrink-0"
-              aria-label={state === 'peek' ? '펼치기' : '접기'}
-            >
-              <svg
-                className={`w-4 h-4 text-gray-600 transition-transform duration-300 ${
-                  state === 'expanded' ? 'rotate-180' : ''
-                }`}
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+
+            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              <button
+                onClick={() => onStateChange(state === 'peek' ? 'expanded' : 'peek')}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition"
+                aria-label={state === 'peek' ? '자세히 보기' : '접기'}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-            </button>
+                <svg
+                  className={`w-4 h-4 text-gray-600 transition-transform duration-300 ${
+                    state === 'expanded' ? 'rotate-180' : ''
+                  }`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition"
+                aria-label="닫기"
+              >
+                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Scrollable detail content */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(92svh - 90px)' }}>
+        {/* 상세 내용 */}
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 88px)' }}>
           <PlaceDetail place={place} userLocation={userLocation} />
         </div>
       </div>

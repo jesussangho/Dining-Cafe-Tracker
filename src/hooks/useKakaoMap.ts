@@ -19,23 +19,41 @@ export function useKakaoMap(initialCenter: MapCenter = DEFAULT_CENTER): UseKakao
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
     const init = () => {
+      if (mapInstanceRef.current) return; // 이미 초기화됨
       if (!containerRef.current) return;
-      const map = new window.kakao.maps.Map(containerRef.current, {
-        center: new window.kakao.maps.LatLng(initialCenter.lat, initialCenter.lng),
-        level: DEFAULT_ZOOM_LEVEL,
-      });
-      mapInstanceRef.current = map;
-      setIsReady(true);
+      try {
+        const map = new window.kakao.maps.Map(containerRef.current, {
+          center: new window.kakao.maps.LatLng(initialCenter.lat, initialCenter.lng),
+          level: DEFAULT_ZOOM_LEVEL,
+        });
+        mapInstanceRef.current = map;
+        setIsReady(true);
+      } catch (e) {
+        console.error('Kakao Maps 초기화 실패:', e);
+      }
     };
 
+    const tryInit = () => {
+      if (window.kakao?.maps) {
+        if (pollTimer) clearInterval(pollTimer);
+        init();
+      }
+    };
+
+    // 이미 로드된 경우 즉시 실행
     if (typeof window !== 'undefined' && window.kakao?.maps) {
       init();
     } else {
+      // onLoad 콜백 등록 + 100ms 폴링 폴백 (두 경로 중 먼저 도착한 것이 실행)
       window.__kakaoMapOnLoad = init;
+      pollTimer = setInterval(tryInit, 100);
     }
 
     return () => {
+      if (pollTimer) clearInterval(pollTimer);
       if (window.__kakaoMapOnLoad === init) {
         window.__kakaoMapOnLoad = undefined;
       }

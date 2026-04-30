@@ -4,43 +4,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mobile-first web service that visualizes nearby restaurants and cafes within walking distance of a user's current location or searched place, with optimal route suggestions.
+Mobile-first web service (Next.js 16 + React 19 + TypeScript + Tailwind CSS v4) that visualizes nearby restaurants and cafes within walking distance of a searched or GPS-detected location, with optimal route suggestions.
 
-## Tech Stack
-
-- **Framework**: Next.js 14+ with App Router, TypeScript
-- **Styling**: Tailwind CSS
-- **Map/Search API**: Kakao Maps SDK or Naver Maps SDK (includes place search library)
-- **Deployment**: Vercel (GitHub auto-deploy)
+**GitHub**: https://github.com/jesussangho/Dining-Cafe-Tracker  
+**Deploy**: Vercel (connect repo → auto-deploy on push to `main`)
 
 ## Commands
 
 ```bash
-npm run dev       # Start development server
+npm run dev       # Dev server at http://localhost:3000
 npm run build     # Production build
-npm run lint      # Run ESLint
-npm run test      # Run tests (if configured)
-npx tsc --noEmit  # Type-check without emitting
+npm run lint      # ESLint
+npx tsc --noEmit  # Type-check
 ```
+
+## Environment
+
+Copy `.env.example` → `.env.local` and fill in:
+```
+NEXT_PUBLIC_KAKAO_MAP_KEY=<JavaScript app key from https://developers.kakao.com>
+```
+
+The key is inlined at build time (`NEXT_PUBLIC_` prefix). No server-side handling needed.
 
 ## Architecture
 
-This is a Next.js App Router project. The three pillars of the UI map directly to three component directories:
+### Data flow: Search → Map → BottomSheet
 
-- `src/components/Search/` — Place/address search bar and results list. Drives the map's center point when a result is selected.
-- `src/components/Map/` — Kakao/Naver map rendering, walking-radius overlays (5/10/15 min), and place markers.
-- `src/components/Detail/` — Bottom swipe-sheet showing place details (menu, rating) and route info cards.
+1. User types in `SearchBar` → debounced (350ms) → `useSearch` calls `kakaoMaps.ts#searchPlacesByKeyword`
+2. Results appear in `SearchResults` dropdown → user selects → `AppShell` sets `center` + `selectedPlace`
+3. `MapContainer` receives new `center` → `useKakaoMap#panTo` fires → `useRadiusCircles` redraws rings at new center
+4. `selectedPlace` triggers `panAndZoom` (level 3) and opens `BottomSheet` in `peek` state
+5. User swipes up → `BottomSheet` expands → `PlaceDetail` shows address, phone, `RouteCard`
 
-Cross-cutting logic lives outside components:
-- `src/hooks/` — Custom hooks for search API calls and GPS location tracking.
-- `src/services/` — Thin wrappers around Kakao/Naver search API endpoints; keep all API key usage here.
+### Key files
 
-### Key Data Flow
+| File | Role |
+|------|------|
+| `src/components/AppShell.tsx` | Single stateful orchestrator; owns all cross-cutting state |
+| `src/components/KakaoScript.tsx` | `'use client'` wrapper for `next/script`; fires `window.__kakaoMapOnLoad?.()` on load |
+| `src/hooks/useKakaoMap.ts` | Map instance lifecycle; uses `window.__kakaoMapOnLoad` bridge for SDK timing |
+| `src/hooks/useRadiusCircles.ts` | Draws/redraws 3 `kakao.maps.Circle` overlays when center or enabled radii change |
+| `src/hooks/useMapMarkers.ts` | Creates/destroys markers; attaches click → `onMarkerClick` → BottomSheet |
+| `src/services/kakaoMaps.ts` | All Kakao SDK calls; `normalizePlace` swaps `x`→lng, `y`→lat (Kakao quirk) |
+| `src/types/kakao.d.ts` | Global `declare namespace kakao.maps` + `Window` augmentation |
 
-1. User searches or GPS fires → hook in `src/hooks/` calls service in `src/services/`
-2. Result updates map center → `Map/` component redraws radius overlays and place markers
-3. User taps a marker → `Detail/` sheet slides up with place info and route options
+### Walking radius constants
 
-### Map API Keys
+- 5 min = 400 m (WALKING_SPEED_MPM = 80 m/min)
+- 10 min = 800 m
+- 15 min = 1200 m
 
-Kakao/Naver SDK keys must be set as environment variables and loaded server-side or via `next.config.js` `env` block — never hardcoded in client components.
+Route card also estimates transit (200 m/min) and car (300 m/min) locally.
+
+### Kakao SDK loading pattern
+
+`layout.tsx` (server) → renders `<KakaoScript>` (client component) → `next/script strategy="afterInteractive"` with `onLoad` that calls `window.__kakaoMapOnLoad?.()`. `useKakaoMap` sets that callback before the script loads; on hot-reload it checks `window.kakao?.maps` immediately.
+
+### Tailwind CSS v4
+
+This project uses Tailwind v4 (no `tailwind.config.ts`). CSS is configured in `globals.css` via `@import "tailwindcss"` and `@theme inline {}`. Standard utility classes work as usual.
+
+### Mobile viewport
+
+Uses `h-[100dvh]` (dynamic viewport height) to avoid iOS Safari address-bar layout shift. `overflow: hidden` on `html, body` prevents page scroll.

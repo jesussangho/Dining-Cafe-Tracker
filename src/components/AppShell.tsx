@@ -44,6 +44,7 @@ export default function AppShell() {
   const { results: searchResults, status, search, clear } = useSearch();
   const { location: userLocation } = useGeolocation();
   const gpsSearchDone = useRef(false);
+  const lastMarkerClickTimeRef = useRef(0);
 
   const effectiveOrigin = customOrigin ?? userLocation;
   const gpsLabel = useReverseGeocode(userLocation);
@@ -111,6 +112,7 @@ export default function AppShell() {
   );
 
   const handleMarkerClick = useCallback((place: Place) => {
+    lastMarkerClickTimeRef.current = Date.now(); // 마커 클릭 시각 기록 — 블리드스루 차단용
     setSelectedPlace(place);
     setSheetState('peek');
     setMapClickPoint(null);
@@ -169,6 +171,8 @@ export default function AppShell() {
 
   // 지도 클릭 → 팝업 표시 + 역지오코딩
   const handleMapClick = useCallback((clicked: MapCenter) => {
+    // 마커 클릭 후 400ms 이내 발화는 블리드스루이므로 무시
+    if (Date.now() - lastMarkerClickTimeRef.current < 400) return;
     setMapClickPoint(clicked);
     setMapClickLabel('위치 확인 중...');
 
@@ -220,8 +224,8 @@ export default function AppShell() {
 
   const routeMode = selectedPlace !== null;
   const showResults = searchFocused && status !== 'idle';
-  // 팝업은 BottomSheet가 닫혀 있을 때만 표시
-  const showMapClickPopup = mapClickPoint !== null && sheetState === 'hidden' && !searchFocused;
+  // 팝업은 검색 드롭다운이 없을 때 항상 표시 (z-40으로 BottomSheet 위에 떠 있음)
+  const showMapClickPopup = mapClickPoint !== null && !searchFocused;
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
@@ -310,10 +314,10 @@ export default function AppShell() {
         </div>
       )}
 
-      {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 */}
+      {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 (z-40으로 BottomSheet 위에 항상 표시) */}
       {showMapClickPopup && (
-        <div className="absolute bottom-6 left-4 right-4 z-20 bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3">
+        <div className="absolute bottom-0 left-0 right-0 z-40 bg-white rounded-t-2xl shadow-2xl px-4 pt-4 pb-8">
+          <div className="flex items-start justify-between gap-2 mb-4">
             <div className="flex-1 min-w-0">
               <p className="text-[11px] text-slate-400 mb-0.5">선택한 위치</p>
               <p className="text-sm font-semibold text-slate-800 leading-snug">{mapClickLabel}</p>
@@ -327,16 +331,16 @@ export default function AppShell() {
               </svg>
             </button>
           </div>
-          <div className="flex gap-2 px-4 pb-4">
+          <div className="flex gap-2">
             <button
               onClick={handleSetAsOrigin}
-              className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white text-sm font-bold active:bg-emerald-600 transition"
+              className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white text-sm font-bold active:bg-emerald-600 transition"
             >
               출발지로 설정
             </button>
             <button
               onClick={handleSetAsDestination}
-              className="flex-1 py-3 rounded-2xl bg-rose-500 text-white text-sm font-bold active:bg-rose-600 transition"
+              className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white text-sm font-bold active:bg-rose-600 transition"
             >
               도착지로 설정
             </button>

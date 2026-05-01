@@ -44,6 +44,27 @@ declare global {
         getMap(): Map | null;
       }
 
+      class CustomOverlay {
+        constructor(options: CustomOverlayOptions);
+        setMap(map: Map | null): void;
+        getMap(): Map | null;
+        setPosition(position: LatLng): void;
+        getPosition(): LatLng;
+        setZIndex(zIndex: number): void;
+        setContent(content: string | HTMLElement): void;
+        setVisible(visible: boolean): void;
+      }
+
+      interface CustomOverlayOptions {
+        map?: Map;
+        position: LatLng;
+        content: string | HTMLElement;
+        xAnchor?: number;
+        yAnchor?: number;
+        zIndex?: number;
+        clickable?: boolean;
+      }
+
       class InfoWindow {
         constructor(options: InfoWindowOptions);
         open(map: Map, marker: Marker): void;

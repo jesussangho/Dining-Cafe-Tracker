@@ -31,10 +31,14 @@ export default function AppShell() {
   const [mapReady, setMapReady] = useState(false);
   const [displayPlaces, setDisplayPlaces] = useState<Place[]>([]);
 
-  // 출발지: null 이면 GPS 사용
+  // 출발지
   const [customOrigin, setCustomOrigin] = useState<MapCenter | null>(null);
   const [customOriginLabel, setCustomOriginLabel] = useState<string | null>(null);
   const [originSearchOpen, setOriginSearchOpen] = useState(false);
+
+  // 지도 클릭 팝업
+  const [mapClickPoint, setMapClickPoint] = useState<MapCenter | null>(null);
+  const [mapClickLabel, setMapClickLabel] = useState('위치 확인 중...');
 
   const debouncedInput = useDebounce(searchInput, 350);
   const { results: searchResults, status, search, clear } = useSearch();
@@ -58,9 +62,7 @@ export default function AppShell() {
     if (debouncedInput.trim()) search(debouncedInput);
   }, [debouncedInput, search]);
 
-  // 검색 성공 → 지도 이동 + 해당 위치 주변 맛집 탐색
-  // ※ searchResults(keywordSearch) 는 category_group_code 미포함 → 색상 오류 원인
-  //   따라서 searchResults 를 직접 표시하지 않고 바로 주변 맛집 탐색으로 대체
+  // 검색 성공 → 지도 이동 + 주변 맛집 탐색
   useEffect(() => {
     if (status === 'success' && searchResults.length > 0) {
       const first = searchResults[0];
@@ -93,7 +95,6 @@ export default function AppShell() {
     }
   }, [clear, customOrigin, userLocation]);
 
-  // 장소 선택 → 지도 이동 + 주변 맛집 탐색 + 하단 시트
   const handlePlaceSelect = useCallback(
     (place: Place) => {
       const loc = { lat: place.lat, lng: place.lng };
@@ -102,6 +103,7 @@ export default function AppShell() {
       setSheetState('peek');
       setSearchFocused(false);
       setSearchInput('');
+      setMapClickPoint(null);
       clear();
       runNearbySearch(loc, setDisplayPlaces);
     },
@@ -111,6 +113,7 @@ export default function AppShell() {
   const handleMarkerClick = useCallback((place: Place) => {
     setSelectedPlace(place);
     setSheetState('peek');
+    setMapClickPoint(null);
   }, []);
 
   const handleSheetClose = useCallback(() => {
@@ -130,7 +133,6 @@ export default function AppShell() {
     runNearbySearch(userLocation, setDisplayPlaces);
   }, [userLocation]);
 
-  // 출발지 변경 — OriginSearchOverlay 에서 호출
   const handleOriginSelect = useCallback(
     (origin: MapCenter, label: string) => {
       setCustomOrigin(origin);
@@ -152,12 +154,10 @@ export default function AppShell() {
     }
   }, [userLocation]);
 
-  // RoutePanel 에서 출발지 변경 (경로 모드)
   const handleRoutePanelOriginChange = useCallback(
     (origin: MapCenter, label: string) => {
       setCustomOrigin(origin);
       setCustomOriginLabel(label);
-      // 지도는 목적지 중심 유지, RouteCard 재계산만 트리거
     },
     []
   );
@@ -167,15 +167,10 @@ export default function AppShell() {
     setCustomOriginLabel(null);
   }, []);
 
-  // 지도 클릭 → 해당 좌표를 출발지로 설정 + 역지오코딩으로 주소 표시
+  // 지도 클릭 → 팝업 표시 + 역지오코딩
   const handleMapClick = useCallback((clicked: MapCenter) => {
-    setCustomOrigin(clicked);
-    setCustomOriginLabel('위치 확인 중...');
-
-    // 탐색 모드일 때만 주변 맛집 재탐색
-    if (!selectedPlace) {
-      runNearbySearch(clicked, setDisplayPlaces);
-    }
+    setMapClickPoint(clicked);
+    setMapClickLabel('위치 확인 중...');
 
     if (window.kakao?.maps?.services) {
       const geocoder = new window.kakao.maps.services.Geocoder();
@@ -183,17 +178,50 @@ export default function AppShell() {
         if (status === 'OK' && result[0]) {
           const addr =
             result[0].road_address?.address_name || result[0].address.address_name;
-          const parts = addr.split(' ');
-          setCustomOriginLabel(parts.slice(-2).join(' '));
+          setMapClickLabel(addr);
         } else {
-          setCustomOriginLabel('지도에서 선택');
+          setMapClickLabel('선택한 위치');
         }
       });
     }
-  }, [selectedPlace]);
+  }, []);
+
+  // 팝업 → 출발지로 설정
+  const handleSetAsOrigin = useCallback(() => {
+    if (!mapClickPoint) return;
+    setCustomOrigin(mapClickPoint);
+    const parts = mapClickLabel.split(' ');
+    setCustomOriginLabel(parts.slice(-2).join(' '));
+    setMapClickPoint(null);
+    if (!selectedPlace) runNearbySearch(mapClickPoint, setDisplayPlaces);
+  }, [mapClickPoint, mapClickLabel, selectedPlace]);
+
+  // 팝업 → 도착지로 설정
+  const handleSetAsDestination = useCallback(() => {
+    if (!mapClickPoint) return;
+    const label = mapClickLabel || '선택한 위치';
+    const destination: Place = {
+      id: `pin_${Date.now()}`,
+      name: label,
+      category: '직접 선택한 위치',
+      categoryGroupCode: '',
+      address: label,
+      addressLegacy: label,
+      phone: '',
+      lat: mapClickPoint.lat,
+      lng: mapClickPoint.lng,
+      placeUrl: `https://map.kakao.com/link/map/${encodeURIComponent(label)},${mapClickPoint.lat},${mapClickPoint.lng}`,
+    };
+    setSelectedPlace(destination);
+    setSheetState('peek');
+    setCenter(mapClickPoint);
+    setMapClickPoint(null);
+  }, [mapClickPoint, mapClickLabel]);
 
   const routeMode = selectedPlace !== null;
   const showResults = searchFocused && status !== 'idle';
+  // 팝업은 BottomSheet가 닫혀 있을 때만 표시
+  const showMapClickPopup = mapClickPoint !== null && sheetState === 'hidden' && !searchFocused;
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
@@ -208,13 +236,9 @@ export default function AppShell() {
         onMapClick={handleMapClick}
       />
 
-      {/* ─── 상단 오버레이 ───────────────────────────────────────────
-          pointer-events-none 컨테이너 안에 각 자식 요소가 개별 pointer-events-auto
-          → 투명 영역이 지도 터치를 절대 가로채지 않음
-      ──────────────────────────────────────────────────────────── */}
+      {/* 상단 오버레이 */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none px-4 pt-4 pb-2">
         {routeMode ? (
-          /* 경로 모드: 출발지 → 목적지 패널 */
           <div className="pointer-events-auto">
             <RoutePanel
               originLabel={effectiveOriginLabel}
@@ -225,7 +249,6 @@ export default function AppShell() {
             />
           </div>
         ) : (
-          /* 탐색 모드: 검색바 + 출발지 칩 */
           <>
             <div className="pointer-events-auto">
               <SearchBar
@@ -246,7 +269,6 @@ export default function AppShell() {
               )}
             </div>
 
-            {/* 출발지 칩 — 검색 드롭다운 없을 때만 표시 */}
             {!showResults && (
               <button
                 className="pointer-events-auto mt-2 flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md px-3.5 py-2 text-xs text-slate-600 hover:bg-white active:bg-slate-50 transition"
@@ -265,7 +287,7 @@ export default function AppShell() {
       </div>
 
       {/* 도보 반경 토글 */}
-      {!routeMode && (
+      {!routeMode && !showMapClickPopup && (
         <div className="absolute bottom-28 left-4 z-10 flex gap-1.5">
           {radii.map((r) => (
             <button
@@ -282,9 +304,43 @@ export default function AppShell() {
       )}
 
       {/* 장소 수 배지 */}
-      {displayPlaces.length > 0 && !routeMode && !searchFocused && (
+      {displayPlaces.length > 0 && !routeMode && !searchFocused && !showMapClickPopup && (
         <div className="absolute bottom-28 right-4 z-10 px-3 py-1.5 bg-white rounded-full shadow-md text-xs font-semibold text-slate-500">
           {displayPlaces.length}개 장소
+        </div>
+      )}
+
+      {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 */}
+      {showMapClickPopup && (
+        <div className="absolute bottom-6 left-4 right-4 z-20 bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] text-slate-400 mb-0.5">선택한 위치</p>
+              <p className="text-sm font-semibold text-slate-800 leading-snug">{mapClickLabel}</p>
+            </div>
+            <button
+              onClick={() => setMapClickPoint(null)}
+              className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full bg-slate-100 active:bg-slate-200"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex gap-2 px-4 pb-4">
+            <button
+              onClick={handleSetAsOrigin}
+              className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white text-sm font-bold active:bg-emerald-600 transition"
+            >
+              출발지로 설정
+            </button>
+            <button
+              onClick={handleSetAsDestination}
+              className="flex-1 py-3 rounded-2xl bg-rose-500 text-white text-sm font-bold active:bg-rose-600 transition"
+            >
+              도착지로 설정
+            </button>
+          </div>
         </div>
       )}
 
@@ -311,7 +367,7 @@ export default function AppShell() {
         onClose={handleSheetClose}
       />
 
-      {/* 출발지 검색 전체화면 오버레이 (z-50 최상위) */}
+      {/* 출발지 검색 전체화면 오버레이 */}
       {originSearchOpen && (
         <OriginSearchOverlay
           currentLabel={effectiveOriginLabel}

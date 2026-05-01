@@ -24,11 +24,8 @@ export default function SearchBar({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setValue(v);
-    if (!v.trim()) {
-      onClear();
-    } else {
-      onSearch(v);
-    }
+    if (!v.trim()) onClear();
+    else onSearch(v);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -36,9 +33,7 @@ export default function SearchBar({
       e.preventDefault();
       if (value.trim()) onSubmit(value.trim());
     }
-    if (e.key === 'Escape') {
-      handleClear();
-    }
+    if (e.key === 'Escape') handleClear();
   };
 
   const handleClear = () => {
@@ -48,8 +43,8 @@ export default function SearchBar({
   };
 
   return (
-    <div className="relative flex items-center">
-      <div className="absolute left-3 text-gray-400 pointer-events-none">
+    <div className="flex items-center gap-2 bg-white rounded-2xl shadow-lg px-3.5 py-3 ring-1 ring-slate-100">
+      <div className="flex-shrink-0 text-slate-400">
         {status === 'loading' ? (
           <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         ) : (
@@ -59,6 +54,7 @@ export default function SearchBar({
           </svg>
         )}
       </div>
+
       <input
         ref={inputRef}
         type="text"
@@ -68,18 +64,26 @@ export default function SearchBar({
         onFocus={() => onFocusChange?.(true)}
         onBlur={() => setTimeout(() => onFocusChange?.(false), 150)}
         placeholder="장소, 주소 검색"
-        className="w-full pl-9 pr-9 py-3 rounded-2xl bg-white shadow-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-400 transition"
+        className="flex-1 text-sm text-slate-800 placeholder-slate-400 outline-none bg-transparent"
       />
-      {value && (
+
+      {value ? (
         <button
           onClick={handleClear}
-          className="absolute right-3 text-gray-400 hover:text-gray-600 transition"
+          className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center transition"
           aria-label="검색어 지우기"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg className="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+      ) : (
+        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center">
+          <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3" strokeWidth={2} />
+            <path strokeLinecap="round" strokeWidth={2} d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+          </svg>
+        </div>
       )}
     </div>
   );

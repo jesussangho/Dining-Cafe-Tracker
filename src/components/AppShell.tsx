@@ -14,6 +14,7 @@ import SearchResults from '@/components/Search/SearchResults';
 import RoutePanel from '@/components/Search/RoutePanel';
 import OriginSearchOverlay from '@/components/Search/OriginSearchOverlay';
 import BottomSheet from '@/components/Detail/BottomSheet';
+import BusArrivalPanel from '@/components/Bus/BusArrivalPanel';
 
 function runNearbySearch(loc: MapCenter, setPlaces: (p: Place[]) => void) {
   searchNearbyAll(loc, 1200)
@@ -46,6 +47,9 @@ export default function AppShell() {
   const [customOrigin, setCustomOrigin] = useState<MapCenter | null>(null);
   const [customOriginLabel, setCustomOriginLabel] = useState<string | null>(null);
   const [originSearchOpen, setOriginSearchOpen] = useState(false);
+
+  // 버스 도착 정보 패널
+  const [busArrivalOpen, setBusArrivalOpen] = useState(false);
 
   // 지도 클릭 팝업
   const [mapClickPoint, setMapClickPoint] = useState<MapCenter | null>(null);
@@ -328,7 +332,8 @@ export default function AppShell() {
             ))}
           </div>
 
-          <div className="flex gap-1.5">
+          {/* mr-16: 우측 버스 버튼(w-12+right-4=64px)과 겹치지 않도록 여백 확보 */}
+          <div className="flex gap-1.5 mr-16">
             <button
               onClick={() => setCategoryListModal('CE7')}
               className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-md bg-white text-slate-700 active:bg-slate-50 transition"
@@ -424,6 +429,21 @@ export default function AppShell() {
         </div>
       )}
 
+      {/* 버스 도착 정보 버튼 — routeMode(장소 선택 시)에서는 BottomSheet 뒤로 숨으므로 숨김 처리 */}
+      {!routeMode && (
+        <button
+          onClick={() => setBusArrivalOpen(true)}
+          disabled={!userLocation}
+          className="absolute bottom-28 right-4 z-20 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 disabled:opacity-40 transition active:scale-95"
+          aria-label="버스 도착 정보"
+        >
+          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="14" rx="2" strokeWidth={2} />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9h18M8 21l1-4m6 4l-1-4M8 17h8" />
+          </svg>
+        </button>
+      )}
+
       {/* GPS 이동 버튼 */}
       <button
         onClick={handleGpsClick}
@@ -436,6 +456,17 @@ export default function AppShell() {
           <path strokeLinecap="round" strokeWidth={2} d="M12 2v3m0 14v3M2 12h3m14 0h3" />
         </svg>
       </button>
+
+      {/* 버스 도착 정보 패널 */}
+      {busArrivalOpen && (
+        <>
+          <div className="absolute inset-0 z-40" onClick={() => setBusArrivalOpen(false)} />
+          <BusArrivalPanel
+            location={userLocation}
+            onClose={() => setBusArrivalOpen(false)}
+          />
+        </>
+      )}
 
       {/* 하단 장소 상세 시트 */}
       <BottomSheet

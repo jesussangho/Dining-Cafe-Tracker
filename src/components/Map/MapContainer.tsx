@@ -14,6 +14,7 @@ interface MapContainerProps {
   selectedPlace: Place | null;
   onMarkerClick: (place: Place) => void;
   onMapReady?: () => void;
+  onMapClick?: (center: MapCenter) => void;
 }
 
 export default function MapContainer({
@@ -23,8 +24,9 @@ export default function MapContainer({
   selectedPlace,
   onMarkerClick,
   onMapReady,
+  onMapClick,
 }: MapContainerProps) {
-  const { mapRef, map, isReady, panTo, panAndZoom } = useKakaoMap(center);
+  const { mapRef, map, isReady, panTo, panAndZoom } = useKakaoMap(center, onMapClick);
 
   // AppShell에 SDK 준비 완료 알림
   useEffect(() => {

@@ -167,6 +167,31 @@ export default function AppShell() {
     setCustomOriginLabel(null);
   }, []);
 
+  // 지도 클릭 → 해당 좌표를 출발지로 설정 + 역지오코딩으로 주소 표시
+  const handleMapClick = useCallback((clicked: MapCenter) => {
+    setCustomOrigin(clicked);
+    setCustomOriginLabel('위치 확인 중...');
+
+    // 탐색 모드일 때만 주변 맛집 재탐색
+    if (!selectedPlace) {
+      runNearbySearch(clicked, setDisplayPlaces);
+    }
+
+    if (window.kakao?.maps?.services) {
+      const geocoder = new window.kakao.maps.services.Geocoder();
+      geocoder.coord2Address(clicked.lng, clicked.lat, (result, status) => {
+        if (status === 'OK' && result[0]) {
+          const addr =
+            result[0].road_address?.address_name || result[0].address.address_name;
+          const parts = addr.split(' ');
+          setCustomOriginLabel(parts.slice(-2).join(' '));
+        } else {
+          setCustomOriginLabel('지도에서 선택');
+        }
+      });
+    }
+  }, [selectedPlace]);
+
   const routeMode = selectedPlace !== null;
   const showResults = searchFocused && status !== 'idle';
 
@@ -180,6 +205,7 @@ export default function AppShell() {
         selectedPlace={selectedPlace}
         onMarkerClick={handleMarkerClick}
         onMapReady={() => setMapReady(true)}
+        onMapClick={handleMapClick}
       />
 
       {/* ─── 상단 오버레이 ───────────────────────────────────────────

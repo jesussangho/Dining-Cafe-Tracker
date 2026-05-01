@@ -13,10 +13,15 @@ interface UseKakaoMapReturn {
   panAndZoom: (center: MapCenter, level: number) => void;
 }
 
-export function useKakaoMap(initialCenter: MapCenter = DEFAULT_CENTER): UseKakaoMapReturn {
+export function useKakaoMap(
+  initialCenter: MapCenter = DEFAULT_CENTER,
+  onMapClick?: (center: MapCenter) => void
+): UseKakaoMapReturn {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<kakao.maps.Map | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const onMapClickRef = useRef(onMapClick);
+  onMapClickRef.current = onMapClick;
 
   useEffect(() => {
     let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -30,6 +35,13 @@ export function useKakaoMap(initialCenter: MapCenter = DEFAULT_CENTER): UseKakao
           level: DEFAULT_ZOOM_LEVEL,
         });
         mapInstanceRef.current = map;
+
+        // 지도 클릭 이벤트 — ref 패턴으로 한 번만 등록, 항상 최신 콜백 호출
+        window.kakao.maps.event.addListener(map, 'click', (mouseEvent: unknown) => {
+          const latLng = (mouseEvent as { latLng: kakao.maps.LatLng }).latLng;
+          onMapClickRef.current?.({ lat: latLng.getLat(), lng: latLng.getLng() });
+        });
+
         setIsReady(true);
       } catch (e) {
         console.error('Kakao Maps 초기화 실패:', e);

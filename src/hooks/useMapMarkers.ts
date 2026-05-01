@@ -3,25 +3,31 @@
 import { useEffect, useRef } from 'react';
 import type { Place } from '@/types';
 
-// 카테고리별 마커 색상
 const MARKER_COLOR: Record<string, string> = {
   FD6: '#F97316', // 음식점 – 주황
   CE7: '#7C3AED', // 카페 – 보라
 };
 
+// 터치 타깃 최소 48×48 dp 확보 (iOS/Android 가이드라인)
+const W = 40;
+const H = 52;
+const R = 12; // 원 반지름
+
 function buildMarkerImage(categoryCode: string): kakao.maps.MarkerImage {
   const fill = MARKER_COLOR[categoryCode] ?? '#2563EB';
-  // SVG 핀 (30×40): 컬러 몸통 + 흰 원 내부
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40">
-    <path d="M15 0C8.925 0 3 5.925 3 12c0 8.5 12 28 12 28S27 20.5 27 12C27 5.925 21.075 0 15 0z"
-      fill="${fill}" stroke="white" stroke-width="1.5"/>
-    <circle cx="15" cy="12" r="6.5" fill="white" fill-opacity="0.95"/>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
+    </filter>
+    <path d="M${W / 2} 1C${W / 2 - 11} 1 ${W / 2 - 19} 8.7 ${W / 2 - 19} 18c0 11 ${W / 2 - 1} 33 ${W / 2 - 1} 33S${W - 1} 29 ${W - 1} 18C${W - 1} 8.7 ${W / 2 + 11} 1 ${W / 2} 1z"
+      fill="${fill}" filter="url(#s)" stroke="white" stroke-width="1.5"/>
+    <circle cx="${W / 2}" cy="18" r="${R}" fill="white" fill-opacity="0.95"/>
   </svg>`;
   const encoded = encodeURIComponent(svg);
   return new window.kakao.maps.MarkerImage(
     `data:image/svg+xml;charset=utf-8,${encoded}`,
-    new window.kakao.maps.Size(30, 40),
-    { offset: new window.kakao.maps.Point(15, 40) }
+    new window.kakao.maps.Size(W, H),
+    { offset: new window.kakao.maps.Point(W / 2, H) }
   );
 }
 
@@ -33,13 +39,11 @@ export function useMapMarkers(
 ) {
   const markersRef = useRef<kakao.maps.Marker[]>([]);
   const onMarkerClickRef = useRef(onMarkerClick);
-  // 콜백 레퍼런스를 최신 상태로 유지 (stale closure 방지)
   onMarkerClickRef.current = onMarkerClick;
 
   useEffect(() => {
     if (!isReady || !map) return;
 
-    // 이전 마커 제거
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
@@ -48,10 +52,15 @@ export function useMapMarkers(
     places.forEach((place) => {
       const position = new window.kakao.maps.LatLng(place.lat, place.lng);
       const image = buildMarkerImage(place.categoryGroupCode);
-      const marker = new window.kakao.maps.Marker({ position, map, image, clickable: true });
+      const marker = new window.kakao.maps.Marker({
+        position,
+        map,
+        image,
+        clickable: true,
+        zIndex: 3,
+      });
       marker.setTitle(place.name);
 
-      // InfoWindow 없이 직접 콜백 호출 (가로막힘 방지)
       window.kakao.maps.event.addListener(marker, 'click', () => {
         onMarkerClickRef.current(place);
       });
@@ -63,5 +72,5 @@ export function useMapMarkers(
       markersRef.current.forEach((m) => m.setMap(null));
       markersRef.current = [];
     };
-  }, [isReady, map, places]); // onMarkerClick 제외 → ref로 최신값 참조
+  }, [isReady, map, places]);
 }

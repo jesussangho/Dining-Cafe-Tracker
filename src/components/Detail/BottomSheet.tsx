@@ -13,7 +13,7 @@ interface BottomSheetProps {
   onClose: () => void;
 }
 
-const PEEK_PX = 200;
+const PEEK_PX = 220;
 
 export default function BottomSheet({
   state,
@@ -39,7 +39,7 @@ export default function BottomSheet({
   }, [place]);
 
   const translateY = (() => {
-    if (state === 'hidden') return sheetH || 700;
+    if (state === 'hidden') return sheetH || 800;
     if (state === 'expanded') return 0;
     return Math.max(0, sheetH - PEEK_PX);
   })();
@@ -82,11 +82,11 @@ export default function BottomSheet({
       <div
         ref={sheetRef}
         className={`absolute left-0 right-0 bottom-0 z-30 bg-white rounded-t-3xl shadow-2xl will-change-transform ${
-          dragging ? '' : 'transition-transform duration-300 ease-out'
-        }`}
+          state === 'hidden' ? 'pointer-events-none' : ''
+        } ${dragging ? '' : 'transition-transform duration-300 ease-out'}`}
         style={{ transform: `translateY(${currentY}px)`, maxHeight: '92dvh' }}
       >
-        {/* Drag handle zone */}
+        {/* 드래그 핸들 — 터치 타깃 넉넉히 확보 */}
         <div
           className="pt-3 pb-0 px-4 cursor-grab active:cursor-grabbing touch-none select-none"
           onPointerDown={handlePointerDown}
@@ -94,10 +94,8 @@ export default function BottomSheet({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          {/* Handle pill */}
           <div className="w-9 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
 
-          {/* Place header */}
           <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-100">
             <div className="flex-1 min-w-0">
               <p className="text-base font-bold text-slate-900 leading-snug truncate">
@@ -109,7 +107,7 @@ export default function BottomSheet({
             <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 onClick={() => onStateChange(state === 'peek' ? 'expanded' : 'peek')}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 flex items-center justify-center transition"
                 aria-label={state === 'peek' ? '자세히 보기' : '접기'}
               >
                 <svg
@@ -123,7 +121,7 @@ export default function BottomSheet({
               </button>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 flex items-center justify-center transition"
                 aria-label="닫기"
               >
                 <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +132,6 @@ export default function BottomSheet({
           </div>
         </div>
 
-        {/* Scrollable detail */}
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 96px)' }}>
           <PlaceDetail place={place} userLocation={userLocation} originLabel={originLabel} />
         </div>

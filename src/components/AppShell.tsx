@@ -59,13 +59,13 @@ export default function AppShell() {
   }, [debouncedInput, search]);
 
   // 검색 성공 → 지도 이동 + 해당 위치 주변 맛집 탐색
+  // ※ searchResults(keywordSearch) 는 category_group_code 미포함 → 색상 오류 원인
+  //   따라서 searchResults 를 직접 표시하지 않고 바로 주변 맛집 탐색으로 대체
   useEffect(() => {
     if (status === 'success' && searchResults.length > 0) {
       const first = searchResults[0];
       const newCenter = { lat: first.lat, lng: first.lng };
       setCenter(newCenter);
-      // 검색 결과를 임시 마커로 표시한 뒤, 주변 맛집으로 교체
-      setDisplayPlaces(searchResults);
       runNearbySearch(newCenter, setDisplayPlaces);
     }
   }, [status, searchResults]);
@@ -86,7 +86,7 @@ export default function AppShell() {
     setSearchInput('');
     clear();
     const origin = customOrigin ?? userLocation;
-    if (origin && gpsSearchDone.current) {
+    if (origin) {
       runNearbySearch(origin, setDisplayPlaces);
     } else {
       setDisplayPlaces([]);
@@ -130,7 +130,7 @@ export default function AppShell() {
     runNearbySearch(userLocation, setDisplayPlaces);
   }, [userLocation]);
 
-  // 출발지 변경 (오버레이에서 호출)
+  // 출발지 변경 — OriginSearchOverlay 에서 호출
   const handleOriginSelect = useCallback(
     (origin: MapCenter, label: string) => {
       setCustomOrigin(origin);
@@ -152,11 +152,12 @@ export default function AppShell() {
     }
   }, [userLocation]);
 
-  // RoutePanel에서 출발지 변경 (경로 모드)
+  // RoutePanel 에서 출발지 변경 (경로 모드)
   const handleRoutePanelOriginChange = useCallback(
     (origin: MapCenter, label: string) => {
       setCustomOrigin(origin);
       setCustomOriginLabel(label);
+      // 지도는 목적지 중심 유지, RouteCard 재계산만 트리거
     },
     []
   );
@@ -181,11 +182,14 @@ export default function AppShell() {
         onMapReady={() => setMapReady(true)}
       />
 
-      {/* 상단 오버레이 */}
-      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div className="pointer-events-auto">
-          {routeMode ? (
-            /* ── 경로 모드: 출발지 → 목적지 패널 ── */
+      {/* ─── 상단 오버레이 ───────────────────────────────────────────
+          pointer-events-none 컨테이너 안에 각 자식 요소가 개별 pointer-events-auto
+          → 투명 영역이 지도 터치를 절대 가로채지 않음
+      ──────────────────────────────────────────────────────────── */}
+      <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none px-4 pt-4 pb-2">
+        {routeMode ? (
+          /* 경로 모드: 출발지 → 목적지 패널 */
+          <div className="pointer-events-auto">
             <RoutePanel
               originLabel={effectiveOriginLabel}
               destination={selectedPlace}
@@ -193,9 +197,11 @@ export default function AppShell() {
               onResetOrigin={handleRoutePanelOriginReset}
               onClose={handleSheetClose}
             />
-          ) : (
-            /* ── 탐색 모드: 검색바 + 출발지 칩 ── */
-            <div className="px-4 pt-4 pb-2 space-y-2">
+          </div>
+        ) : (
+          /* 탐색 모드: 검색바 + 출발지 칩 */
+          <>
+            <div className="pointer-events-auto">
               <SearchBar
                 onSearch={handleSearchChange}
                 onSubmit={handleSearchSubmit}
@@ -203,24 +209,8 @@ export default function AppShell() {
                 status={status}
                 onFocusChange={setSearchFocused}
               />
-
-              {/* 출발지 변경 칩 */}
-              {!searchFocused && (
-                <button
-                  onClick={() => setOriginSearchOpen(true)}
-                  className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md px-3.5 py-2 text-xs text-slate-600 hover:bg-white transition"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                  <span className="font-medium truncate max-w-[180px]">{effectiveOriginLabel}</span>
-                  <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
-              )}
-
               {showResults && (
-                <div className="relative">
+                <div className="relative mt-2">
                   <SearchResults
                     results={searchResults}
                     status={status}
@@ -229,8 +219,23 @@ export default function AppShell() {
                 </div>
               )}
             </div>
-          )}
-        </div>
+
+            {/* 출발지 칩 — 검색 드롭다운 없을 때만 표시 */}
+            {!showResults && (
+              <button
+                className="pointer-events-auto mt-2 flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md px-3.5 py-2 text-xs text-slate-600 hover:bg-white active:bg-slate-50 transition"
+                onClick={() => setOriginSearchOpen(true)}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                <span className="font-medium truncate max-w-[180px]">{effectiveOriginLabel}</span>
+                <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* 도보 반경 토글 */}
@@ -240,7 +245,7 @@ export default function AppShell() {
             <button
               key={r.minutes}
               onClick={() => toggleRadius(r.minutes)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
                 r.enabled ? 'bg-white text-blue-600' : 'bg-white/70 text-slate-400'
               }`}
             >
@@ -280,7 +285,7 @@ export default function AppShell() {
         onClose={handleSheetClose}
       />
 
-      {/* 출발지 검색 전체화면 오버레이 */}
+      {/* 출발지 검색 전체화면 오버레이 (z-50 최상위) */}
       {originSearchOpen && (
         <OriginSearchOverlay
           currentLabel={effectiveOriginLabel}

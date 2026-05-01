@@ -12,7 +12,14 @@ import MapContainer from '@/components/Map/MapContainer';
 import SearchBar from '@/components/Search/SearchBar';
 import SearchResults from '@/components/Search/SearchResults';
 import RoutePanel from '@/components/Search/RoutePanel';
+import OriginSearchOverlay from '@/components/Search/OriginSearchOverlay';
 import BottomSheet from '@/components/Detail/BottomSheet';
+
+function runNearbySearch(loc: MapCenter, setPlaces: (p: Place[]) => void) {
+  searchNearbyAll(loc, 1200)
+    .then((places) => { if (places.length > 0) setPlaces(places); })
+    .catch(console.error);
+}
 
 export default function AppShell() {
   const [center, setCenter] = useState<MapCenter>(DEFAULT_CENTER);
@@ -24,9 +31,10 @@ export default function AppShell() {
   const [mapReady, setMapReady] = useState(false);
   const [displayPlaces, setDisplayPlaces] = useState<Place[]>([]);
 
-  // 출발지: null이면 GPS 사용, 설정 시 커스텀 좌표
+  // 출발지: null 이면 GPS 사용
   const [customOrigin, setCustomOrigin] = useState<MapCenter | null>(null);
   const [customOriginLabel, setCustomOriginLabel] = useState<string | null>(null);
+  const [originSearchOpen, setOriginSearchOpen] = useState(false);
 
   const debouncedInput = useDebounce(searchInput, 350);
   const { results: searchResults, status, search, clear } = useSearch();
@@ -37,14 +45,12 @@ export default function AppShell() {
   const gpsLabel = useReverseGeocode(userLocation);
   const effectiveOriginLabel = customOriginLabel ?? gpsLabel ?? '현재 위치';
 
-  // GPS 자동 탐색
+  // GPS 자동 탐색 (최초 1회)
   useEffect(() => {
     if (!mapReady || !userLocation || gpsSearchDone.current) return;
     gpsSearchDone.current = true;
     setCenter(userLocation);
-    searchNearbyAll(userLocation, 1200)
-      .then((places) => { if (places.length > 0) setDisplayPlaces(places); })
-      .catch(console.error);
+    runNearbySearch(userLocation, setDisplayPlaces);
   }, [mapReady, userLocation]);
 
   // 디바운스 검색
@@ -52,11 +58,15 @@ export default function AppShell() {
     if (debouncedInput.trim()) search(debouncedInput);
   }, [debouncedInput, search]);
 
-  // 검색 성공 → 첫 결과로 지도 이동
+  // 검색 성공 → 지도 이동 + 해당 위치 주변 맛집 탐색
   useEffect(() => {
     if (status === 'success' && searchResults.length > 0) {
+      const first = searchResults[0];
+      const newCenter = { lat: first.lat, lng: first.lng };
+      setCenter(newCenter);
+      // 검색 결과를 임시 마커로 표시한 뒤, 주변 맛집으로 교체
       setDisplayPlaces(searchResults);
-      setCenter({ lat: searchResults[0].lat, lng: searchResults[0].lng });
+      runNearbySearch(newCenter, setDisplayPlaces);
     }
   }, [status, searchResults]);
 
@@ -75,23 +85,25 @@ export default function AppShell() {
   const handleSearchClear = useCallback(() => {
     setSearchInput('');
     clear();
-    if (userLocation && gpsSearchDone.current) {
-      searchNearbyAll(userLocation, 1200)
-        .then((places) => { if (places.length > 0) setDisplayPlaces(places); })
-        .catch(console.error);
+    const origin = customOrigin ?? userLocation;
+    if (origin && gpsSearchDone.current) {
+      runNearbySearch(origin, setDisplayPlaces);
     } else {
       setDisplayPlaces([]);
     }
-  }, [clear, userLocation]);
+  }, [clear, customOrigin, userLocation]);
 
+  // 장소 선택 → 지도 이동 + 주변 맛집 탐색 + 하단 시트
   const handlePlaceSelect = useCallback(
     (place: Place) => {
-      setCenter({ lat: place.lat, lng: place.lng });
+      const loc = { lat: place.lat, lng: place.lng };
+      setCenter(loc);
       setSelectedPlace(place);
       setSheetState('peek');
       setSearchFocused(false);
       setSearchInput('');
       clear();
+      runNearbySearch(loc, setDisplayPlaces);
     },
     [clear]
   );
@@ -115,17 +127,41 @@ export default function AppShell() {
   const handleGpsClick = useCallback(() => {
     if (!userLocation) return;
     setCenter({ ...userLocation });
-    searchNearbyAll(userLocation, 1200)
-      .then((places) => { if (places.length > 0) setDisplayPlaces(places); })
-      .catch(console.error);
+    runNearbySearch(userLocation, setDisplayPlaces);
   }, [userLocation]);
 
-  const handleOriginChange = useCallback((origin: MapCenter, label: string) => {
-    setCustomOrigin(origin);
-    setCustomOriginLabel(label);
-  }, []);
+  // 출발지 변경 (오버레이에서 호출)
+  const handleOriginSelect = useCallback(
+    (origin: MapCenter, label: string) => {
+      setCustomOrigin(origin);
+      setCustomOriginLabel(label);
+      setOriginSearchOpen(false);
+      setCenter(origin);
+      runNearbySearch(origin, setDisplayPlaces);
+    },
+    []
+  );
 
-  const handleResetOrigin = useCallback(() => {
+  const handleOriginGps = useCallback(() => {
+    setCustomOrigin(null);
+    setCustomOriginLabel(null);
+    setOriginSearchOpen(false);
+    if (userLocation) {
+      setCenter({ ...userLocation });
+      runNearbySearch(userLocation, setDisplayPlaces);
+    }
+  }, [userLocation]);
+
+  // RoutePanel에서 출발지 변경 (경로 모드)
+  const handleRoutePanelOriginChange = useCallback(
+    (origin: MapCenter, label: string) => {
+      setCustomOrigin(origin);
+      setCustomOriginLabel(label);
+    },
+    []
+  );
+
+  const handleRoutePanelOriginReset = useCallback(() => {
     setCustomOrigin(null);
     setCustomOriginLabel(null);
   }, []);
@@ -147,19 +183,19 @@ export default function AppShell() {
 
       {/* 상단 오버레이 */}
       <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-        <div className="pointer-events-auto safe-area-inset-top">
+        <div className="pointer-events-auto">
           {routeMode ? (
-            /* 경로 모드: 출발지 → 목적지 패널 */
+            /* ── 경로 모드: 출발지 → 목적지 패널 ── */
             <RoutePanel
               originLabel={effectiveOriginLabel}
               destination={selectedPlace}
-              onOriginChange={handleOriginChange}
-              onResetOrigin={handleResetOrigin}
+              onOriginChange={handleRoutePanelOriginChange}
+              onResetOrigin={handleRoutePanelOriginReset}
               onClose={handleSheetClose}
             />
           ) : (
-            /* 탐색 모드: 검색바 */
-            <div className="px-4 pt-4 pb-2">
+            /* ── 탐색 모드: 검색바 + 출발지 칩 ── */
+            <div className="px-4 pt-4 pb-2 space-y-2">
               <SearchBar
                 onSearch={handleSearchChange}
                 onSubmit={handleSearchSubmit}
@@ -167,6 +203,22 @@ export default function AppShell() {
                 status={status}
                 onFocusChange={setSearchFocused}
               />
+
+              {/* 출발지 변경 칩 */}
+              {!searchFocused && (
+                <button
+                  onClick={() => setOriginSearchOpen(true)}
+                  className="flex items-center gap-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md px-3.5 py-2 text-xs text-slate-600 hover:bg-white transition"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="font-medium truncate max-w-[180px]">{effectiveOriginLabel}</span>
+                  <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              )}
+
               {showResults && (
                 <div className="relative">
                   <SearchResults
@@ -181,7 +233,7 @@ export default function AppShell() {
         </div>
       </div>
 
-      {/* 도보 반경 토글 (좌측 하단, 경로 모드가 아닐 때) */}
+      {/* 도보 반경 토글 */}
       {!routeMode && (
         <div className="absolute bottom-28 left-4 z-10 flex gap-1.5">
           {radii.map((r) => (
@@ -189,9 +241,7 @@ export default function AppShell() {
               key={r.minutes}
               onClick={() => toggleRadius(r.minutes)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition ${
-                r.enabled
-                  ? 'bg-white text-blue-600 shadow-md'
-                  : 'bg-white/70 text-slate-400'
+                r.enabled ? 'bg-white text-blue-600' : 'bg-white/70 text-slate-400'
               }`}
             >
               {r.label}
@@ -229,6 +279,16 @@ export default function AppShell() {
         onStateChange={setSheetState}
         onClose={handleSheetClose}
       />
+
+      {/* 출발지 검색 전체화면 오버레이 */}
+      {originSearchOpen && (
+        <OriginSearchOverlay
+          currentLabel={effectiveOriginLabel}
+          onSelect={handleOriginSelect}
+          onUseGps={handleOriginGps}
+          onClose={() => setOriginSearchOpen(false)}
+        />
+      )}
     </div>
   );
 }

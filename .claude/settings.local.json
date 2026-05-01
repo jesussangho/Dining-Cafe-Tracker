@@ -26,7 +26,8 @@
       "Bash(git commit -m 'feat: GPS auto-discovery, search auto-pan, map-ready bridge *)",
       "Bash(git commit -m 'feat: real car route time via Kakao Mobility API *)",
       "Bash(git commit -m 'feat: ODsay transit routing with unstable_cache *)",
-      "Bash(git commit -m 'fix: marker click, bottom sheet visibility, SDK guard *)"
+      "Bash(git commit -m 'fix: marker click, bottom sheet visibility, SDK guard *)",
+      "Bash(git commit *)"
     ]
   }
 }

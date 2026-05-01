@@ -65,6 +65,24 @@ declare global {
         clickable?: boolean;
       }
 
+      class Polyline {
+        constructor(options: PolylineOptions);
+        setMap(map: Map | null): void;
+        getMap(): Map | null;
+        setPath(path: LatLng[]): void;
+        getPath(): LatLng[];
+      }
+
+      interface PolylineOptions {
+        map?: Map;
+        path: LatLng[];
+        strokeWeight?: number;
+        strokeColor?: string;
+        strokeOpacity?: number;
+        strokeStyle?: string;
+        endArrow?: boolean;
+      }
+
       class InfoWindow {
         constructor(options: InfoWindowOptions);
         open(map: Map, marker: Marker): void;

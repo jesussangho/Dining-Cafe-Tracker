@@ -16,9 +16,22 @@ const getCachedCarRoute = unstable_cache(
     const data = await res.json();
     const route = data?.routes?.[0];
     if (!route || route.result_code !== 0) return null;
+
+    // 경로 폴리라인 좌표 수집 (vertexes: [lng, lat, lng, lat, ...] 평면 배열)
+    const polyline: number[][] = [];
+    for (const section of route.sections ?? []) {
+      for (const road of section.roads ?? []) {
+        const v: number[] = road.vertexes ?? [];
+        for (let i = 0; i < v.length - 1; i += 2) {
+          polyline.push([v[i], v[i + 1]]); // [lng, lat]
+        }
+      }
+    }
+
     return {
       duration: Math.ceil(route.summary.duration / 60), // 초 → 분
       distance: route.summary.distance as number,
+      polyline,
     };
   },
   ['kakao-car'],

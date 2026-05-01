@@ -5,6 +5,7 @@ import type { MapCenter, Place, RadiusOption } from '@/types';
 import { useKakaoMap } from '@/hooks/useKakaoMap';
 import { useRadiusCircles } from '@/hooks/useRadiusCircles';
 import { useMapMarkers } from '@/hooks/useMapMarkers';
+import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { DETAIL_ZOOM_LEVEL } from '@/constants/map';
 
 interface MapContainerProps {
@@ -15,6 +16,8 @@ interface MapContainerProps {
   onMarkerClick: (place: Place) => void;
   onMapReady?: () => void;
   onMapClick?: (center: MapCenter) => void;
+  origin?: MapCenter | null;
+  destination?: MapCenter | null;
 }
 
 export default function MapContainer({
@@ -25,6 +28,8 @@ export default function MapContainer({
   onMarkerClick,
   onMapReady,
   onMapClick,
+  origin,
+  destination,
 }: MapContainerProps) {
   const { mapRef, map, isReady, panTo, panAndZoom } = useKakaoMap(center, onMapClick);
 
@@ -49,6 +54,7 @@ export default function MapContainer({
 
   useRadiusCircles(map, isReady, center, radii);
   useMapMarkers(map, isReady, places, onMarkerClick);
+  useRoutePolyline(map, isReady, origin ?? null, destination ?? null);
 
   return (
     <div className="relative w-full h-full">

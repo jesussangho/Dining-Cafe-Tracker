@@ -29,6 +29,7 @@ export default function AppShell() {
   const [enabledCategories, setEnabledCategories] = useState<Set<string>>(
     new Set(['FD6', 'CE7'])
   );
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -251,6 +252,8 @@ export default function AppShell() {
         onMarkerClick={handleMarkerClick}
         onMapReady={() => setMapReady(true)}
         onMapClick={handleMapClick}
+        origin={effectiveOrigin}
+        destination={selectedPlace ? { lat: selectedPlace.lat, lng: selectedPlace.lng } : null}
       />
 
       {/* 상단 오버레이 */}
@@ -303,7 +306,7 @@ export default function AppShell() {
         )}
       </div>
 
-      {/* 하단 버튼 바: 반경 + 카테고리 필터 */}
+      {/* 하단 버튼 바: 반경 + 카테고리 필터 아이콘 */}
       {!routeMode && !showMapClickPopup && (
         <div className="absolute bottom-28 left-0 right-0 z-10 flex items-center justify-between px-4">
           {/* 도보 반경 토글 */}
@@ -313,7 +316,7 @@ export default function AppShell() {
                 key={r.minutes}
                 onClick={() => toggleRadius(r.minutes)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
-                  r.enabled ? 'bg-white text-blue-600' : 'bg-white/70 text-slate-400'
+                  r.enabled ? 'bg-white text-slate-700' : 'bg-white/70 text-slate-400'
                 }`}
               >
                 {r.label}
@@ -321,26 +324,71 @@ export default function AppShell() {
             ))}
           </div>
 
-          {/* 카테고리 필터 */}
-          <div className="flex gap-1.5">
-            {[
-              { code: 'CE7', label: '카페' },
-              { code: 'FD6', label: '식당' },
-            ].map(({ code, label }) => (
-              <button
-                key={code}
-                onClick={() => toggleCategory(code)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
-                  enabledCategories.has(code)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white/70 text-slate-400'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* 카테고리 필터 버튼 */}
+          <button
+            onClick={() => setCategoryModalOpen(true)}
+            className="flex items-center gap-1.5 bg-white shadow-md rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 active:bg-slate-50 transition"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 4h18M7 8h10M11 12h2" />
+            </svg>
+            필터
+            {enabledCategories.size < 2 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+            )}
+          </button>
         </div>
+      )}
+
+      {/* 카테고리 필터 모달 */}
+      {categoryModalOpen && (
+        <>
+          <div
+            className="absolute inset-0 z-40"
+            onClick={() => setCategoryModalOpen(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl px-4 pt-5 pb-8">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-bold text-slate-800">장소 유형 필터</p>
+              <button
+                onClick={() => setCategoryModalOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100"
+              >
+                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {[
+              { code: 'CE7', label: '카페', desc: '카페·커피전문점' },
+              { code: 'FD6', label: '식당', desc: '음식점·맛집' },
+            ].map(({ code, label, desc }) => {
+              const on = enabledCategories.has(code);
+              return (
+                <button
+                  key={code}
+                  onClick={() => toggleCategory(code)}
+                  className="flex items-center justify-between w-full py-3.5 border-b border-slate-100 last:border-0"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-slate-800">{label}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    on ? 'bg-slate-800 border-slate-800' : 'border-slate-300'
+                  }`}>
+                    {on && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 (z-40으로 BottomSheet 위에 항상 표시) */}

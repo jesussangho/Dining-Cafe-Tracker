@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BottomSheetState, MapCenter, Place, RadiusOption } from '@/types';
+import type { BottomSheetState, MapCenter, Place, RadiusOption, TransportMode } from '@/types';
 import { DEFAULT_CENTER, RADIUS_OPTIONS } from '@/constants/map';
 import { searchNearbyAll } from '@/services/kakaoMaps';
 import { useSearch } from '@/hooks/useSearch';
@@ -21,19 +21,26 @@ function runNearbySearch(loc: MapCenter, setPlaces: (p: Place[]) => void) {
     .catch(console.error);
 }
 
+function fmtDist(m?: number) {
+  if (!m) return '';
+  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
+}
+
 export default function AppShell() {
   const [center, setCenter] = useState<MapCenter>(DEFAULT_CENTER);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [sheetState, setSheetState] = useState<BottomSheetState>('hidden');
   const [radii, setRadii] = useState<RadiusOption[]>(RADIUS_OPTIONS);
-  const [enabledCategories, setEnabledCategories] = useState<Set<string>>(
-    new Set(['FD6', 'CE7'])
-  );
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [displayPlaces, setDisplayPlaces] = useState<Place[]>([]);
+
+  // 카테고리 리스트 모달: 'CE7'=카페, 'FD6'=식당, null=닫힘
+  const [categoryListModal, setCategoryListModal] = useState<'CE7' | 'FD6' | null>(null);
+
+  // 선택된 이동 수단 (지도 경로 표시 연동)
+  const [selectedRouteMode, setSelectedRouteMode] = useState<TransportMode>('walk');
 
   // 출발지
   const [customOrigin, setCustomOrigin] = useState<MapCenter | null>(null);
@@ -109,6 +116,7 @@ export default function AppShell() {
       setSearchFocused(false);
       setSearchInput('');
       setMapClickPoint(null);
+      setCategoryListModal(null);
       clear();
       runNearbySearch(loc, setDisplayPlaces);
     },
@@ -116,30 +124,23 @@ export default function AppShell() {
   );
 
   const handleMarkerClick = useCallback((place: Place) => {
-    lastMarkerClickTimeRef.current = Date.now(); // 마커 클릭 시각 기록 — 블리드스루 차단용
+    lastMarkerClickTimeRef.current = Date.now();
     setSelectedPlace(place);
     setSheetState('peek');
     setMapClickPoint(null);
+    setCategoryListModal(null);
   }, []);
 
   const handleSheetClose = useCallback(() => {
     setSheetState('hidden');
     setSelectedPlace(null);
+    setSelectedRouteMode('walk');
   }, []);
 
   const toggleRadius = useCallback((minutes: 5 | 10 | 15) => {
     setRadii((prev) =>
       prev.map((r) => (r.minutes === minutes ? { ...r, enabled: !r.enabled } : r))
     );
-  }, []);
-
-  const toggleCategory = useCallback((code: string) => {
-    setEnabledCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
   }, []);
 
   const handleGpsClick = useCallback(() => {
@@ -184,8 +185,8 @@ export default function AppShell() {
 
   // 지도 클릭 → 팝업 표시 + 역지오코딩
   const handleMapClick = useCallback((clicked: MapCenter) => {
-    // 마커 클릭 후 400ms 이내 발화는 블리드스루이므로 무시
     if (Date.now() - lastMarkerClickTimeRef.current < 400) return;
+    setCategoryListModal(null);
     setMapClickPoint(clicked);
     setMapClickLabel('위치 확인 중...');
 
@@ -238,15 +239,18 @@ export default function AppShell() {
   const routeMode = selectedPlace !== null;
   const showResults = searchFocused && status !== 'idle';
   const showMapClickPopup = mapClickPoint !== null && !searchFocused;
-  // 카테고리 필터 적용
-  const filteredPlaces = displayPlaces.filter((p) => enabledCategories.has(p.categoryGroupCode));
+
+  // 카테고리 리스트 모달에 표시할 장소
+  const modalPlaces = categoryListModal
+    ? displayPlaces.filter((p) => p.categoryGroupCode === categoryListModal)
+    : [];
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
       {/* 지도 (전체 화면) */}
       <MapContainer
         center={center}
-        places={filteredPlaces}
+        places={[]}
         radii={radii}
         selectedPlace={selectedPlace}
         onMarkerClick={handleMarkerClick}
@@ -254,6 +258,7 @@ export default function AppShell() {
         onMapClick={handleMapClick}
         origin={effectiveOrigin}
         destination={selectedPlace ? { lat: selectedPlace.lat, lng: selectedPlace.lng } : null}
+        routeMode={selectedRouteMode}
       />
 
       {/* 상단 오버레이 */}
@@ -306,10 +311,9 @@ export default function AppShell() {
         )}
       </div>
 
-      {/* 하단 버튼 바: 반경 + 카테고리 필터 아이콘 */}
+      {/* 하단 버튼 바: 반경 + 카페/식당 버튼 */}
       {!routeMode && !showMapClickPopup && (
         <div className="absolute bottom-28 left-0 right-0 z-10 flex items-center justify-between px-4">
-          {/* 도보 반경 토글 */}
           <div className="flex gap-1.5">
             {radii.map((r) => (
               <button
@@ -324,35 +328,35 @@ export default function AppShell() {
             ))}
           </div>
 
-          {/* 카테고리 필터 버튼 */}
-          <button
-            onClick={() => setCategoryModalOpen(true)}
-            className="flex items-center gap-1.5 bg-white shadow-md rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 active:bg-slate-50 transition"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 4h18M7 8h10M11 12h2" />
-            </svg>
-            필터
-            {enabledCategories.size < 2 && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
-            )}
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => setCategoryListModal('CE7')}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-md bg-white text-slate-700 active:bg-slate-50 transition"
+            >
+              카페
+            </button>
+            <button
+              onClick={() => setCategoryListModal('FD6')}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold shadow-md bg-white text-slate-700 active:bg-slate-50 transition"
+            >
+              식당
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 카테고리 필터 모달 */}
-      {categoryModalOpen && (
+      {/* 카테고리 장소 리스트 모달 */}
+      {categoryListModal && (
         <>
-          <div
-            className="absolute inset-0 z-40"
-            onClick={() => setCategoryModalOpen(false)}
-          />
-          <div className="absolute bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl px-4 pt-5 pb-8">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-slate-800">장소 유형 필터</p>
+          <div className="absolute inset-0 z-40" onClick={() => setCategoryListModal(null)} />
+          <div className="absolute bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl flex flex-col" style={{ maxHeight: '70dvh' }}>
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-slate-100 flex-shrink-0">
+              <p className="text-sm font-bold text-slate-800">
+                {categoryListModal === 'CE7' ? '카페' : '식당'} 목록
+                <span className="ml-1.5 text-xs font-normal text-slate-400">({modalPlaces.length}개)</span>
+              </p>
               <button
-                onClick={() => setCategoryModalOpen(false)}
+                onClick={() => setCategoryListModal(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100"
               >
                 <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -360,38 +364,33 @@ export default function AppShell() {
                 </svg>
               </button>
             </div>
-            {[
-              { code: 'CE7', label: '카페', desc: '카페·커피전문점' },
-              { code: 'FD6', label: '식당', desc: '음식점·맛집' },
-            ].map(({ code, label, desc }) => {
-              const on = enabledCategories.has(code);
-              return (
-                <button
-                  key={code}
-                  onClick={() => toggleCategory(code)}
-                  className="flex items-center justify-between w-full py-3.5 border-b border-slate-100 last:border-0"
-                >
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-800">{label}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    on ? 'bg-slate-800 border-slate-800' : 'border-slate-300'
-                  }`}>
-                    {on && (
-                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
+
+            <div className="overflow-y-auto">
+              {modalPlaces.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-10">주변에 검색된 장소가 없습니다</p>
+              ) : (
+                modalPlaces.map((place) => (
+                  <button
+                    key={place.id}
+                    onClick={() => handlePlaceSelect(place)}
+                    className="flex items-start justify-between w-full px-4 py-3.5 border-b border-slate-50 last:border-0 text-left active:bg-slate-50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{place.name}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{place.address}</p>
+                    </div>
+                    {place.distance !== undefined && (
+                      <span className="text-xs text-slate-400 flex-shrink-0 ml-2 mt-0.5">{fmtDist(place.distance)}</span>
                     )}
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </>
       )}
 
-      {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 (z-40으로 BottomSheet 위에 항상 표시) */}
+      {/* 지도 클릭 팝업 — 출발지 / 도착지 선택 */}
       {showMapClickPopup && (
         <div className="absolute bottom-0 left-0 right-0 z-40 bg-white rounded-t-2xl shadow-2xl px-4 pt-4 pb-8">
           <div className="flex items-start justify-between gap-2 mb-4">
@@ -446,6 +445,7 @@ export default function AppShell() {
         originLabel={effectiveOriginLabel}
         onStateChange={setSheetState}
         onClose={handleSheetClose}
+        onRouteModeChange={setSelectedRouteMode}
       />
 
       {/* 출발지 검색 전체화면 오버레이 */}

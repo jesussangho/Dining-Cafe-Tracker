@@ -27,9 +27,10 @@ interface PlaceDetailProps {
   place: Place;
   userLocation: MapCenter | null;
   originLabel: string | null;
+  onRouteModeChange?: (mode: RouteEstimate['mode']) => void;
 }
 
-export default function PlaceDetail({ place, userLocation, originLabel }: PlaceDetailProps) {
+export default function PlaceDetail({ place, userLocation, originLabel, onRouteModeChange }: PlaceDetailProps) {
   const [routeMode, setRouteMode] = useState<RouteEstimate['mode']>('walk');
 
   const categoryLabel =
@@ -134,6 +135,7 @@ export default function PlaceDetail({ place, userLocation, originLabel }: PlaceD
           originLabel={originLabel ?? '현재 위치'}
           selectedMode={routeMode}
           onModeChange={setRouteMode}
+          onRouteModeChange={onRouteModeChange}
         />
       )}
     </div>

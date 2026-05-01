@@ -11,6 +11,7 @@ interface BottomSheetProps {
   originLabel: string | null;
   onStateChange: (state: BottomSheetState) => void;
   onClose: () => void;
+  onRouteModeChange?: (mode: 'walk' | 'transit' | 'car') => void;
 }
 
 const PEEK_PX = 220;
@@ -22,6 +23,7 @@ export default function BottomSheet({
   originLabel,
   onStateChange,
   onClose,
+  onRouteModeChange,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [sheetH, setSheetH] = useState(0);
@@ -133,7 +135,7 @@ export default function BottomSheet({
         </div>
 
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 96px)' }}>
-          <PlaceDetail place={place} userLocation={userLocation} originLabel={originLabel} />
+          <PlaceDetail place={place} userLocation={userLocation} originLabel={originLabel} onRouteModeChange={onRouteModeChange} />
         </div>
       </div>
     </>

@@ -27,6 +27,7 @@ interface RouteCardProps {
   originLabel: string;
   selectedMode: RouteEstimate['mode'];
   onModeChange: (mode: RouteEstimate['mode']) => void;
+  onRouteModeChange?: (mode: RouteEstimate['mode']) => void; // AppShell까지 전파
 }
 
 export default function RouteCard({
@@ -36,6 +37,7 @@ export default function RouteCard({
   originLabel,
   selectedMode,
   onModeChange,
+  onRouteModeChange,
 }: RouteCardProps) {
   const [realTimes, setRealTimes] = useState<RealTimes>({ car: null, transit: null });
   const [loading, setLoading] = useState(false);
@@ -100,7 +102,7 @@ export default function RouteCard({
           return (
             <button
               key={mode}
-              onClick={() => onModeChange(mode)}
+              onClick={() => { onModeChange(mode); onRouteModeChange?.(mode); }}
               className={`flex-1 flex flex-col items-center py-3 rounded-2xl border text-xs font-medium transition ${
                 isActive ? meta.active : meta.color
               }`}

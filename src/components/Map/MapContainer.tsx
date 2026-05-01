@@ -7,6 +7,7 @@ import { useRadiusCircles } from '@/hooks/useRadiusCircles';
 import { useMapMarkers } from '@/hooks/useMapMarkers';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { DETAIL_ZOOM_LEVEL } from '@/constants/map';
+import type { TransportMode } from '@/types';
 
 interface MapContainerProps {
   center: MapCenter;
@@ -18,6 +19,7 @@ interface MapContainerProps {
   onMapClick?: (center: MapCenter) => void;
   origin?: MapCenter | null;
   destination?: MapCenter | null;
+  routeMode?: TransportMode;
 }
 
 export default function MapContainer({
@@ -30,6 +32,7 @@ export default function MapContainer({
   onMapClick,
   origin,
   destination,
+  routeMode = 'walk',
 }: MapContainerProps) {
   const { mapRef, map, isReady, panTo, panAndZoom } = useKakaoMap(center, onMapClick);
 
@@ -54,7 +57,7 @@ export default function MapContainer({
 
   useRadiusCircles(map, isReady, center, radii);
   useMapMarkers(map, isReady, places, onMarkerClick);
-  useRoutePolyline(map, isReady, origin ?? null, destination ?? null);
+  useRoutePolyline(map, isReady, origin ?? null, destination ?? null, routeMode);
 
   return (
     <div className="relative w-full h-full">

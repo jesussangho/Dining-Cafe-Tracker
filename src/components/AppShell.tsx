@@ -26,6 +26,9 @@ export default function AppShell() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [sheetState, setSheetState] = useState<BottomSheetState>('hidden');
   const [radii, setRadii] = useState<RadiusOption[]>(RADIUS_OPTIONS);
+  const [enabledCategories, setEnabledCategories] = useState<Set<string>>(
+    new Set(['FD6', 'CE7'])
+  );
   const [searchInput, setSearchInput] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -129,6 +132,15 @@ export default function AppShell() {
     );
   }, []);
 
+  const toggleCategory = useCallback((code: string) => {
+    setEnabledCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }, []);
+
   const handleGpsClick = useCallback(() => {
     if (!userLocation) return;
     setCenter({ ...userLocation });
@@ -224,15 +236,16 @@ export default function AppShell() {
 
   const routeMode = selectedPlace !== null;
   const showResults = searchFocused && status !== 'idle';
-  // 팝업은 검색 드롭다운이 없을 때 항상 표시 (z-40으로 BottomSheet 위에 떠 있음)
   const showMapClickPopup = mapClickPoint !== null && !searchFocused;
+  // 카테고리 필터 적용
+  const filteredPlaces = displayPlaces.filter((p) => enabledCategories.has(p.categoryGroupCode));
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
       {/* 지도 (전체 화면) */}
       <MapContainer
         center={center}
-        places={displayPlaces}
+        places={filteredPlaces}
         radii={radii}
         selectedPlace={selectedPlace}
         onMarkerClick={handleMarkerClick}
@@ -290,27 +303,43 @@ export default function AppShell() {
         )}
       </div>
 
-      {/* 도보 반경 토글 */}
+      {/* 하단 버튼 바: 반경 + 카테고리 필터 */}
       {!routeMode && !showMapClickPopup && (
-        <div className="absolute bottom-28 left-4 z-10 flex gap-1.5">
-          {radii.map((r) => (
-            <button
-              key={r.minutes}
-              onClick={() => toggleRadius(r.minutes)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
-                r.enabled ? 'bg-white text-blue-600' : 'bg-white/70 text-slate-400'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      )}
+        <div className="absolute bottom-28 left-0 right-0 z-10 flex items-center justify-between px-4">
+          {/* 도보 반경 토글 */}
+          <div className="flex gap-1.5">
+            {radii.map((r) => (
+              <button
+                key={r.minutes}
+                onClick={() => toggleRadius(r.minutes)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
+                  r.enabled ? 'bg-white text-blue-600' : 'bg-white/70 text-slate-400'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
 
-      {/* 장소 수 배지 */}
-      {displayPlaces.length > 0 && !routeMode && !searchFocused && !showMapClickPopup && (
-        <div className="absolute bottom-28 right-4 z-10 px-3 py-1.5 bg-white rounded-full shadow-md text-xs font-semibold text-slate-500">
-          {displayPlaces.length}개 장소
+          {/* 카테고리 필터 */}
+          <div className="flex gap-1.5">
+            {[
+              { code: 'CE7', label: '카페' },
+              { code: 'FD6', label: '식당' },
+            ].map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => toggleCategory(code)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition active:scale-95 ${
+                  enabledCategories.has(code)
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white/70 text-slate-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

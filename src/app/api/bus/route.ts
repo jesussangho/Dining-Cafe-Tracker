@@ -15,6 +15,7 @@ export interface BusArrival {
   arrivalSec2: number;
   prevStationCnt1: number;
   prevStationCnt2: number;
+}
 
 
 export interface BusApiResponse {
@@ -25,9 +26,11 @@ export interface BusApiResponse {
 function extractOdsayError(data: Record<string, unknown>): string | null {
   // 최상위 error 필드 ({"error": {"code": -5, "msg": "..."}})
   if (data?.error) {
-    const e = data.error as Record<string, unknown>;
+    const e = data.error;
     if (typeof e === 'string') return e;
-    return String(e.msg ?? e.message ?? JSON.stringify(e));
+        // 배열 형태면 첫 번째 요소를 꺼내 처리
+        const item = Array.isArray(e) ? (e[0] as Record<string, unknown>) : (e as Record<string, unknown>);
+        return String(item.msg ?? item.message ?? JSON.stringify(item));
   }
   // result.error 배열 형태 ({"result": {"error": [{"code": "-8", "msg": "..."}]}})
   const resultError = (data?.result as Record<string, unknown> | undefined)?.error;

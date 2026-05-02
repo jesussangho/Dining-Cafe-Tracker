@@ -433,7 +433,7 @@ export default function AppShell() {
       {!routeMode && (
         <button
           onClick={() => setBusArrivalOpen(true)}
-          disabled={!userLocation}
+          disabled={!effectiveOrigin}
           className="absolute bottom-28 right-4 z-20 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-slate-50 disabled:opacity-40 transition active:scale-95"
           aria-label="버스 도착 정보"
         >
@@ -462,7 +462,7 @@ export default function AppShell() {
         <>
           <div className="absolute inset-0 z-40" onClick={() => setBusArrivalOpen(false)} />
           <BusArrivalPanel
-            location={userLocation}
+            location={effectiveOrigin}
             onClose={() => setBusArrivalOpen(false)}
           />
         </>

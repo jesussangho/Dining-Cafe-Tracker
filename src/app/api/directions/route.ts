@@ -46,7 +46,7 @@ const getCachedTransitRoute = unstable_cache(
 
     const url =
       `https://api.odsay.com/v1/api/searchPubTransPathT` +
-      `?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${encodeURIComponent(key)}`;
+      `?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${key}`;
 
     const res = await fetch(url);
     if (!res.ok) return null;

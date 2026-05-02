@@ -15,7 +15,7 @@ export interface BusArrival {
   arrivalSec2: number;
   prevStationCnt1: number;
   prevStationCnt2: number;
-}
+
 
 export interface BusApiResponse {
   station: BusStation;
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
   // 1단계: searchStation으로 좌표 근처 버스 정류장 탐색
   const stationUrl =
     `https://api.odsay.com/v1/api/searchStation` +
-    `?x=${lngNum}&y=${latNum}&stationClass=1&apiKey=${encodeURIComponent(apiKey)}`;
+    `?x=${lngNum}&y=${latNum}&stationClass=1&apiKey=${apiKey}`;
 
   let stationRes: Response;
   try {
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
   // 2단계: stationArrivalSearch로 실시간 도착 정보 조회
   const arrivalUrl =
     `https://api.odsay.com/v1/api/stationArrivalSearch` +
-    `?stationID=${station.id}&stationClass=1&apiKey=${encodeURIComponent(apiKey)}`;
+    `?stationID=${station.id}&stationClass=1&apiKey=${apiKey}`;
 
   let arrivalRes: Response;
   try {

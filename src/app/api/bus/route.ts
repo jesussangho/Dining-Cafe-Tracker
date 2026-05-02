@@ -71,7 +71,10 @@ export async function GET(request: NextRequest) {
 
   let stationRes: Response;
   try {
-    stationRes = await fetch(stationUrl, { next: { revalidate: 60 } });
+    stationRes = await fetch(stationUrl, {
+      next: { revalidate: 60 },
+      headers: { Referer: 'https://dining-cafe-tracker.vercel.app' },
+    });
   } catch {
     return NextResponse.json({ error: '정류장 검색 요청에 실패했습니다' }, { status: 502 });
   }
@@ -110,7 +113,10 @@ export async function GET(request: NextRequest) {
 
   let arrivalRes: Response;
   try {
-    arrivalRes = await fetch(arrivalUrl, { cache: 'no-store' });
+    arrivalRes = await fetch(arrivalUrl, {
+      cache: 'no-store',
+      headers: { Referer: 'https://dining-cafe-tracker.vercel.app' },
+    });
   } catch {
     return NextResponse.json({ error: '도착 정보 요청에 실패했습니다' }, { status: 502 });
   }

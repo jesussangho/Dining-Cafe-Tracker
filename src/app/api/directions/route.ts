@@ -48,7 +48,9 @@ const getCachedTransitRoute = unstable_cache(
       `https://api.odsay.com/v1/api/searchPubTransPathT` +
       `?SX=${sx}&SY=${sy}&EX=${ex}&EY=${ey}&apiKey=${key}`;
 
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: { Referer: 'https://dining-cafe-tracker.vercel.app' },
+    });
     if (!res.ok) return null;
     const data = await res.json();
 
